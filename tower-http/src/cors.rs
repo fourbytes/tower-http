@@ -314,7 +314,7 @@ impl<S> Layer<S> for CorsLayer {
     type Service = Cors<S>;
 
     fn layer(&self, inner: S) -> Self::Service {
-        Cors::new(inner)
+        Cors::new(inner, self)
     }
 }
 
@@ -331,10 +331,10 @@ pub struct Cors<S> {
 
 impl<S> Cors<S> {
     /// Create a new `Cors`.
-    pub fn new(inner: S) -> Self {
+    pub fn new(inner: S, layer: &CorsLayer) -> Self {
         Self {
             inner,
-            layer: CorsLayer::new(),
+            layer: layer.clone()
         }
     }
 
@@ -345,80 +345,6 @@ impl<S> Cors<S> {
     /// [`Layer`]: tower_layer::Layer
     pub fn layer() -> CorsLayer {
         CorsLayer::new()
-    }
-
-    /// Set the value of the [`Access-Control-Allow-Credentials`][mdn] header.
-    ///
-    /// See [`CorsLayer::allow_credentials`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
-    pub fn allow_credentials(self, allow_credentials: bool) -> Self {
-        self.update_layer(|layer| layer.allow_credentials(allow_credentials))
-    }
-
-    /// Set the value of the [`Access-Control-Allow-Headers`][mdn] header.
-    ///
-    /// See [`CorsLayer::allow_headers`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
-    pub fn allow_headers<I>(self, headers: I) -> Self
-    where
-        I: IntoIterator<Item = HeaderValue>,
-    {
-        self.update_layer(|layer| layer.allow_headers(headers))
-    }
-
-    /// Set the value of the [`Access-Control-Max-Age`][mdn] header.
-    ///
-    /// See [`CorsLayer::max_age`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
-    pub fn max_age(self, max_age: Duration) -> Self {
-        self.update_layer(|layer| layer.max_age(max_age))
-    }
-
-    /// Set the value of the [`Access-Control-Allow-Methods`][mdn] header.
-    ///
-    /// See [`CorsLayer::allow_methods`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
-    pub fn allow_methods<T>(self, methods: T) -> Self
-    where
-        T: Into<AnyOr<Vec<Method>>>,
-    {
-        self.update_layer(|layer| layer.allow_methods(methods))
-    }
-
-    /// Set the value of the [`Access-Control-Allow-Origin`][mdn] header.
-    ///
-    /// See [`CorsLayer::allow_origin`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-    pub fn allow_origin<T>(self, origin: T) -> Self
-    where
-        T: Into<AnyOr<Origin>>,
-    {
-        self.update_layer(|layer| layer.allow_origin(origin))
-    }
-
-    /// Set the value of the [`Access-Control-Expose-Headers`][mdn] header.
-    ///
-    /// See [`CorsLayer::expose_headers`] for more details.
-    ///
-    /// [mdn]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
-    pub fn expose_headers<I>(self, headers: I) -> Self
-    where
-        I: Into<AnyOr<Vec<HeaderName>>>,
-    {
-        self.update_layer(|layer| layer.expose_headers(headers))
-    }
-
-    fn update_layer<F>(mut self, f: F) -> Self
-    where
-        F: FnOnce(CorsLayer) -> CorsLayer,
-    {
-        self.layer = f(self.layer);
-        self
     }
 
     fn is_valid_origin(&self, origin: &HeaderValue) -> bool {
@@ -498,7 +424,7 @@ enum OriginInner {
     List(Arc<[HeaderValue]>),
 }
 
-impl<S, ReqBody, ResBody> Service<Request<ReqBody>> for Cors<S>
+impl<'l, S, ReqBody, ResBody> Service<Request<ReqBody>> for Cors<S>
 where
     S: Service<Request<ReqBody>, Response = Response<ResBody>>,
     ResBody: Default,
